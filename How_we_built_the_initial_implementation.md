@@ -9,15 +9,23 @@
 
 This document picks up where [How we built the spec](How_we_built_the_spec.md) left off. The specification was complete, the reference implementations (`gws` and `m365`) were available as submodules, and the architecture was well-defined. The question was: how do you get from a 40-page spec to a working CLI?
 
-The answer turned out to be not one large implementation pass but a three-phase process: generate, review, remediate. Each phase revealed something different about how AI-assisted development works at this scale, and about the kinds of errors that emerge when an agent builds a complex system from a specification.
+The answer turned out to be not one large implementation pass but a four-phase process: plan, generate, review, remediate. Each phase revealed something different about how AI-assisted development works at this scale, and about the kinds of errors that emerge when an agent builds a complex system from a specification.
 
 ---
 
-## Phase 1: Initial Implementation (~45 minutes)
+## Phase 1: Planning the Implementation (~20 minutes)
 
-The implementation started with a single prompt: hand Claude Code the specification and the reference implementations, and let it build.
+The implementation did not start with "build this." It started with planning. Claude Code was given the specification, the reference implementations, and an explicit instruction: use `/plan` mode with `ultrathink` (deep reasoning) to create a multi-phased implementation plan before writing any code.
 
-The instruction was deliberately broad — implement the full specification, following the `gws` submodule for architecture and `m365` for Graph API patterns. Claude Code read `SPECIFICATION.md`, studied the reference source code, and produced the initial commit: **54 files, 6,513 lines of code**.
+This mirrors the philosophy from the specification phase — understand the full scope before committing to an approach. Claude Code read `SPECIFICATION.md`, studied the `gws` and `m365` reference source code, and produced a phased plan that sequenced the work: project scaffolding and dependencies first, then the schema engine, then auth, then the dynamic command surface, then output formatting, MCP server, tests, and finally skills and documentation.
+
+The plan was reviewed and approved before any code was written. This is a meaningful constraint — it forces the agent to think about dependency ordering (you can't test dynamic commands without the schema engine) and to commit to an architecture before generating code.
+
+---
+
+## Phase 2: Executing the Plan (~45 minutes)
+
+With the plan approved, Claude Code executed it phase by phase, producing the initial commit: **54 files, 6,513 lines of code**.
 
 ```
 5fc2776 Initial implementation of mws — Microsoft 365 Graph API CLI
@@ -34,7 +42,7 @@ This is the part that feels almost unremarkable in hindsight: an agent reads a s
 
 ---
 
-## Phase 2: The Review (~30 minutes)
+## Phase 3: The Review (~30 minutes)
 
 Rather than immediately testing and fixing forward, the next step was a deliberate pause: a full critical review of the codebase, requested "using ultrathink" — Claude Code's deep reasoning mode.
 
@@ -67,7 +75,7 @@ This is also why the review step mattered. Running `mws me messages list` would 
 
 ---
 
-## Phase 3: Remediation Planning (~15 minutes)
+## Phase 4: Remediation Planning (~15 minutes)
 
 With 27 findings documented, the next step was not "fix them all" but "plan the fix." Using Claude Code's `/plan` mode, the findings were organized into a phased implementation plan:
 
@@ -81,7 +89,7 @@ The plan was reviewed and approved before any code was changed. This is the spec
 
 ---
 
-## Phase 4: Implementation of Fixes (~90 minutes)
+## Phase 5: Implementation of Fixes (~90 minutes)
 
 The remediation was executed as a single focused session, producing one commit:
 
