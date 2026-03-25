@@ -1,0 +1,9 @@
+[submodule "research/cli"]
+	path = research/cli
+	url = git@github.com:googleworkspace/cli.git
+[submodule "research/gws"]
+	path = research/gws
+	url = git@github.com:googleworkspace/cli.git
+[submodule "research/m365"]
+	path = research/m365
+	url = git@github.com:pnp/cli-microsoft365.git
