@@ -168,9 +168,16 @@ class LazySchemaGroup(TyperGroup):
                 self.add_command(_build_resource_group(resource), name)
 
     def list_commands(self, ctx: click.Context) -> list[str]:
+        # Only load schema when listing commands (e.g. --help on root).
+        # Skip if running in a test environment without schema cache.
         self._ensure_schema()
         return super().list_commands(ctx)
 
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        # Try static (Typer-registered) commands first to avoid triggering schema load
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+        # Only load schema for unknown commands (dynamic API commands)
         self._ensure_schema()
         return super().get_command(ctx, cmd_name)

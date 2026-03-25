@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from typer.testing import CliRunner
 
@@ -15,6 +16,12 @@ from mws.errors import (
     ThrottledError,
 )
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
 
 def test_version_output(cli_runner: CliRunner) -> None:
     result = cli_runner.invoke(app, ["--version"])
@@ -25,6 +32,7 @@ def test_version_output(cli_runner: CliRunner) -> None:
 def test_help_shows_global_flags(cli_runner: CliRunner) -> None:
     result = cli_runner.invoke(app, ["--help"])
     assert result.exit_code == 0
+    output = _strip_ansi(result.output)
     for flag in [
         "--format",
         "--dry-run",
@@ -41,7 +49,7 @@ def test_help_shows_global_flags(cli_runner: CliRunner) -> None:
         "--quiet",
         "--no-color",
     ]:
-        assert flag in result.output, f"Missing flag {flag} in help output"
+        assert flag in output, f"Missing flag {flag} in help output"
 
 
 def test_no_args_shows_help(cli_runner: CliRunner) -> None:
