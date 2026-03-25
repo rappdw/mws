@@ -1,4 +1,7 @@
-# Review Findings
+# Review Findings (Archived)
+
+> **Reviewed against:** `5fc2776` (Initial implementation of mws)
+> **Remediated in:** `1075f98` (Fix critical wiring issues: dynamic commands, auth, aliases, and mypy)
 
 Critical review of the `mws` repository covering code completeness, correctness, architecture, and overall viability.
 
