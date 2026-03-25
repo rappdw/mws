@@ -19,6 +19,9 @@ htmlcov/
 .vscode/
 *.swp
 
+# Drafts
+draft_*.md
+
 # OS
 .DS_Store
 
