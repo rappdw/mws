@@ -48,7 +48,21 @@ def login(
             json.dumps(
                 {
                     "error": "auth_error",
-                    "message": "Missing --tenant-id. Run: mws auth login --tenant-id <tid>",
+                    "message": "Missing --tenant-id. Run: mws auth login --tenant-id <tid>"
+                    " --client-id <cid>",
+                }
+            ),
+            file=sys.stderr,
+        )
+        raise typer.Exit(2)
+
+    if not effective_client:
+        print(
+            json.dumps(
+                {
+                    "error": "auth_error",
+                    "message": "Missing --client-id. Register an Azure AD app and provide"
+                    " --client-id <cid>. See docs/auth-setup.md.",
                 }
             ),
             file=sys.stderr,

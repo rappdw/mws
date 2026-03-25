@@ -12,6 +12,7 @@ import httpx
 from mws.errors import (
     ApiError,
     AuthError,
+    MwsError,
     NotFoundError,
     PermissionDeniedError,
     ThrottledError,
@@ -29,17 +30,19 @@ def compute_retry_delay(retry_after: str | None, attempt: int) -> float:
     if retry_after:
         try:
             delay = float(retry_after)
-            return min(delay, MAX_RETRY_DELAY)
+            return min(delay, float(MAX_RETRY_DELAY))
         except ValueError:
             pass
     # Exponential backoff: 1, 2, 4 seconds
-    return min(2**attempt, MAX_RETRY_DELAY)
+    return float(min(2**attempt, MAX_RETRY_DELAY))
 
 
-def _classify_error(status: int, body: dict[str, Any]) -> type:
+def _classify_error(status: int) -> type[MwsError]:
     """Map HTTP status to error class."""
-    if status == 401 or status == 403:
-        return PermissionDeniedError if status == 403 else AuthError
+    if status == 401:
+        return AuthError
+    if status == 403:
+        return PermissionDeniedError
     if status == 404:
         return NotFoundError
     if status == 429:
@@ -53,15 +56,13 @@ def strip_odata_metadata(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def strip_metadata_recursive(data: Any) -> Any:
-    """Strip OData metadata from response, including nested value arrays."""
+    """Strip OData metadata from response at all nesting levels."""
     if isinstance(data, dict):
-        result = strip_odata_metadata(data)
-        if "value" in result and isinstance(result["value"], list):
-            result["value"] = [
-                strip_odata_metadata(item) if isinstance(item, dict) else item
-                for item in result["value"]
-            ]
-        return result
+        return {
+            k: strip_metadata_recursive(v) for k, v in data.items() if k not in ODATA_METADATA_KEYS
+        }
+    if isinstance(data, list):
+        return [strip_metadata_recursive(item) for item in data]
     return data
 
 
@@ -161,15 +162,16 @@ class GraphClient:
                     if isinstance(body.get("error"), dict)
                     else response.text[:200]
                 )
-                error_cls = _classify_error(response.status_code, body)
-                if error_cls == ThrottledError:
+                error_cls = _classify_error(response.status_code)
+                if error_cls is ThrottledError:
                     raise ThrottledError(
                         message=error_msg,
                         retry_after=int(response.headers.get("Retry-After", "0")),
                     )
                 raise error_cls(message=error_msg)
 
-            return response.json()
+            data: dict[str, Any] = response.json()
+            return data
 
         raise ApiError(message="Max retries exceeded")
 
@@ -255,9 +257,10 @@ class GraphClient:
                     if isinstance(body.get("error"), dict)
                     else response.text[:200]
                 )
-                error_cls = _classify_error(response.status_code, body)
+                error_cls = _classify_error(response.status_code)
                 raise error_cls(message=error_msg)
 
-            return response.json()
+            data: dict[str, Any] = response.json()
+            return data
 
         raise ApiError(message="Max retries exceeded")

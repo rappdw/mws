@@ -275,6 +275,14 @@ class TestSchemaCommands:
         assert "methods" in data
         assert "resource" in data
 
+    def test_schema_path_shortcut(self, cli_runner: CliRunner) -> None:
+        """F-23: mws schema /me/messages works without 'show' subcommand."""
+        with patch("mws.schema.introspect._get_tree", return_value=self._mock_tree()):
+            result = cli_runner.invoke(app, ["schema", "/me/messages"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "methods" in data
+
     def test_schema_show_with_method_filter(self, cli_runner: CliRunner) -> None:
         with patch("mws.schema.introspect._get_tree", return_value=self._mock_tree()):
             result = cli_runner.invoke(app, ["schema", "show", "/me/messages", "--method", "GET"])

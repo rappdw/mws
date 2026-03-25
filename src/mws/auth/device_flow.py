@@ -11,8 +11,8 @@ import msal
 
 from mws.errors import AuthError
 
-# Default Azure AD app client ID for mws CLI
-DEFAULT_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
+# Users must register their own Azure AD app and provide --client-id
+DEFAULT_CLIENT_ID = ""
 DEFAULT_AUTHORITY = "https://login.microsoftonline.com"
 DEFAULT_SCOPES = ["https://graph.microsoft.com/.default"]
 
@@ -69,12 +69,12 @@ class DeviceCodeAuth:
         app = self._get_app()
 
         # Try silent acquisition first
-        accounts = app.get_accounts()
+        accounts: list[dict[str, Any]] = app.get_accounts()
         if accounts:
             result = app.acquire_token_silent(scopes, account=accounts[0])
             if result and "access_token" in result:
                 self._save_cache()
-                return result
+                return dict(result)
 
         # Fall back to device code flow
         flow = app.initiate_device_flow(scopes=scopes)
@@ -94,19 +94,19 @@ class DeviceCodeAuth:
             )
 
         self._save_cache()
-        return result
+        return dict(result)
 
     def get_cached_token(self, scopes: list[str] | None = None) -> dict[str, Any] | None:
         """Try to get a cached token without interactive flow."""
         scopes = scopes or DEFAULT_SCOPES
         app = self._get_app()
-        accounts = app.get_accounts()
+        accounts: list[dict[str, Any]] = app.get_accounts()
         if not accounts:
             return None
         result = app.acquire_token_silent(scopes, account=accounts[0])
         if result and "access_token" in result:
             self._save_cache()
-            return result
+            return dict(result)
         return None
 
     def clear_cache(self) -> None:
@@ -117,4 +117,5 @@ class DeviceCodeAuth:
     def get_accounts(self) -> list[dict[str, Any]]:
         """List cached accounts."""
         app = self._get_app()
-        return app.get_accounts()
+        accounts: list[dict[str, Any]] = app.get_accounts()
+        return accounts

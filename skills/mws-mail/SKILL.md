@@ -32,7 +32,7 @@ mws mail list --filter "isRead eq false" --select "subject,from,receivedDateTime
 mws me messages get --params '{"message-id": "<ID>"}'
 
 # Send an email
-mws me sendMail --body '{
+mws me send-mail --body '{
   "message": {
     "subject": "Hello",
     "body": {"contentType": "Text", "content": "Hi there"},
@@ -94,5 +94,5 @@ mws mail list --select "subject,from,receivedDateTime,isRead" --top 10 --format 
 ## Tips
 
 - Use `--select` to minimize response size — Graph API returns all fields by default
-- Use `--dry-run` before `sendMail` to verify the request payload
+- Use `--dry-run` before `send-mail` to verify the request payload
 - Page through large mailboxes with `--page-all --page-limit 5`

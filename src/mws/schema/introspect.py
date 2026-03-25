@@ -6,11 +6,11 @@ import asyncio
 import json
 from typing import Annotated
 
+import click
 import typer
+from typer.core import TyperGroup
 
 from mws.schema.build import CommandTree, MethodNode, ResourceNode
-
-schema_app = typer.Typer(help="Introspect the Graph API schema.")
 
 # Lazy-loaded tree cache (per api_version)
 _tree_cache: dict[str, CommandTree] = {}
@@ -30,6 +30,63 @@ def _get_tree(api_version: str, force_refresh: bool = False, quiet: bool = False
 
 def _clear_tree_cache() -> None:
     _tree_cache.clear()
+
+
+def _show_path(path: str, method: str | None, api_version: str) -> None:
+    """Show schema details for a resource path."""
+    tree = _get_tree(api_version)
+
+    segments = [s for s in path.strip("/").split("/") if s]
+    if not segments:
+        print(json.dumps({"error": "invalid_path", "message": "Path cannot be empty."}))
+        raise typer.Exit(1)
+
+    result = tree.resolve_path(segments)
+    if result is None:
+        print(json.dumps({"error": "not_found", "message": f"Path not found: {path}"}))
+        raise typer.Exit(3)
+
+    if isinstance(result, MethodNode):
+        print(json.dumps(result.to_dict(), indent=2))
+    elif isinstance(result, ResourceNode):
+        output: dict[str, object] = {"resource": result.name}
+        if result.methods:
+            methods_list = list(result.methods.values())
+            if method:
+                methods_list = [m for m in methods_list if m.http_method.upper() == method.upper()]
+            output["methods"] = [m.to_dict() for m in methods_list]
+        if result.children:
+            output["children"] = sorted(result.children.keys())
+        print(json.dumps(output, indent=2))
+
+
+class SchemaGroup(TyperGroup):
+    """Custom group that handles path arguments like /me/messages as schema show."""
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        # If it looks like a path (starts with /), treat as schema show
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+        if cmd_name.startswith("/"):
+            return self._make_show_command(cmd_name)
+        return None
+
+    def _make_show_command(self, path: str) -> click.Command:
+        """Create an ad-hoc command that shows schema for the given path."""
+
+        @click.command(name=path, hidden=True)
+        @click.option("--method", default=None, help="Filter by HTTP method.")
+        @click.option(
+            "--api-version", default="v1.0", envvar="MWS_API_VERSION", help="Graph API version."
+        )
+        def show_cmd(method: str | None, api_version: str) -> None:
+            _show_path(path, method, api_version)
+
+        return show_cmd
+
+
+schema_app = typer.Typer(cls=SchemaGroup, help="Introspect the Graph API schema.")
 
 
 @schema_app.command("list")
@@ -71,28 +128,4 @@ def schema_show(
     ] = "v1.0",
 ) -> None:
     """Show schema details for a resource path."""
-    tree = _get_tree(api_version)
-
-    # Normalize path: strip leading slash, split
-    segments = [s for s in path.strip("/").split("/") if s]
-    if not segments:
-        print(json.dumps({"error": "invalid_path", "message": "Path cannot be empty."}))
-        raise typer.Exit(1)
-
-    result = tree.resolve_path(segments)
-    if result is None:
-        print(json.dumps({"error": "not_found", "message": f"Path not found: {path}"}))
-        raise typer.Exit(3)
-
-    if isinstance(result, MethodNode):
-        print(json.dumps(result.to_dict(), indent=2))
-    elif isinstance(result, ResourceNode):
-        output: dict[str, object] = {"resource": result.name}
-        if result.methods:
-            methods_list = list(result.methods.values())
-            if method:
-                methods_list = [m for m in methods_list if m.http_method.upper() == method.upper()]
-            output["methods"] = [m.to_dict() for m in methods_list]
-        if result.children:
-            output["children"] = sorted(result.children.keys())
-        print(json.dumps(output, indent=2))
+    _show_path(path, method, api_version)

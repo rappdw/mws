@@ -4,15 +4,9 @@ from __future__ import annotations
 
 import json
 import sys
-from enum import StrEnum
 from typing import Any
 
-
-class OutputFormat(StrEnum):
-    json = "json"
-    table = "table"
-    yaml = "yaml"
-
+from mws.cli import OutputFormat
 
 MAX_TABLE_WIDTH = 40
 MAX_TABLE_COLUMNS = 5
@@ -43,7 +37,7 @@ def _format_json(data: Any) -> str:
         return json.dumps(data, indent=2, ensure_ascii=False)
 
 
-def _format_table(data: Any, select_fields: list[str] | None = None) -> str:
+def _format_table(data: Any, select_fields: list[str] | None = None, no_color: bool = False) -> str:
     """Format as a Rich table."""
     from rich.console import Console
     from rich.table import Table
@@ -78,7 +72,7 @@ def _format_table(data: Any, select_fields: list[str] | None = None) -> str:
             row.append(_truncate(str(val)))
         table.add_row(*row)
 
-    console = Console(file=sys.stdout, no_color=False)
+    console = Console(file=sys.stdout, no_color=no_color)
     with console.capture() as capture:
         console.print(table)
     return capture.get()
@@ -96,27 +90,30 @@ def _format_yaml(data: Any) -> str:
                 items.extend(page["value"])
             else:
                 items.append(page)
-        return yaml.dump(items, default_flow_style=False, allow_unicode=True)
+        result: str = yaml.dump(items, default_flow_style=False, allow_unicode=True)
+        return result
     elif isinstance(data, dict) and "value" in data and isinstance(data["value"], list):
-        return yaml.dump(data["value"], default_flow_style=False, allow_unicode=True)
-    return yaml.dump(data, default_flow_style=False, allow_unicode=True)
+        result = yaml.dump(data["value"], default_flow_style=False, allow_unicode=True)
+        return result
+    result = yaml.dump(data, default_flow_style=False, allow_unicode=True)
+    return result
 
 
-def format_response(data: Any, fmt: OutputFormat | str) -> str:
+def format_response(data: Any, fmt: OutputFormat, no_color: bool = False) -> str:
     """Format response data according to the chosen output format."""
-    fmt_str = fmt.value if isinstance(fmt, OutputFormat) else fmt
-    if fmt_str == "table":
-        return _format_table(data)
-    elif fmt_str == "yaml":
+    if fmt == OutputFormat.table:
+        return _format_table(data, no_color=no_color)
+    elif fmt == OutputFormat.yaml:
         return _format_yaml(data)
     return _format_json(data)
 
 
-def format_and_print(data: Any, fmt: Any, quiet: bool = False) -> None:
+def format_and_print(
+    data: Any, fmt: OutputFormat, quiet: bool = False, no_color: bool = False
+) -> None:
     """Format and print response data to stdout."""
     if quiet:
         return
-    fmt_value = fmt.value if hasattr(fmt, "value") else str(fmt)
-    output = format_response(data, fmt_value)
+    output = format_response(data, fmt, no_color=no_color)
     if output:
         print(output)

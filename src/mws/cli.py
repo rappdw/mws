@@ -11,6 +11,7 @@ import typer
 from mws import __version__
 from mws.auth.commands import auth_app
 from mws.engine.aliases import aliases_app
+from mws.engine.commander import LazySchemaGroup
 from mws.schema.introspect import schema_app
 
 
@@ -38,6 +39,7 @@ class GlobalOptions:
     select: str | None = None
     filter: str | None = None
     top: int | None = None
+    orderby: str | None = None
     page_all: bool = False
     page_limit: int = 10
     no_color: bool = False
@@ -61,6 +63,7 @@ def _version_callback(value: bool) -> None:
 
 app = typer.Typer(
     name="mws",
+    cls=LazySchemaGroup,
     help="Agent-first CLI for Microsoft 365 (Graph API).",
     no_args_is_help=True,
     add_completion=False,
@@ -119,6 +122,10 @@ def main(
         int | None,
         typer.Option("--top", help="Shorthand for $top."),
     ] = None,
+    orderby: Annotated[
+        str | None,
+        typer.Option("--orderby", help="Shorthand for $orderby."),
+    ] = None,
     page_all: Annotated[
         bool,
         typer.Option("--page-all", help="Follow all @odata.nextLink pages."),
@@ -152,6 +159,7 @@ def main(
         select=select,
         filter=filter,
         top=top,
+        orderby=orderby,
         page_all=page_all,
         page_limit=page_limit,
         no_color=no_color,
@@ -189,6 +197,17 @@ def mcp(
     server = create_mcp_server(tree, services=svc_list)
 
     if transport == "sse":
-        server.run(transport="sse", port=port)
+        server.settings.port = port
+        server.run(transport="sse")
     else:
         server.run(transport="stdio")
+
+
+def cli_main() -> None:
+    """Entry point that resolves aliases before Typer dispatch."""
+    import sys
+
+    from mws.engine.aliases import resolve_alias
+
+    sys.argv[1:] = resolve_alias(sys.argv[1:])
+    app()

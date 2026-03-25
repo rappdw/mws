@@ -8,27 +8,62 @@ import sys
 from typing import Any
 
 import click
-import typer
+from typer.core import TyperGroup
 
 from mws.schema.build import MethodNode, ResourceNode
+
+
+def _resolve_auth(dry_run: bool = False) -> Any:
+    """Resolve auth provider from config/env, or None for dry-run."""
+    if dry_run:
+        return None
+
+    from mws.auth.client_creds import ClientCredentialAuth
+    from mws.auth.config import load_config, resolve_effective_profile
+    from mws.client.graph import MsalAuth
+
+    # Try client credentials first (env vars)
+    cred_auth = ClientCredentialAuth.from_env()
+    if cred_auth:
+        return MsalAuth(cred_auth)
+
+    # Fall back to device code flow
+    config = load_config()
+    _profile_name, profile = resolve_effective_profile(config)
+
+    if not profile.tenant_id:
+        from mws.errors import AuthError
+
+        raise AuthError(message="No profile configured. Run 'mws auth login' to get started.")
+
+    from mws.auth.device_flow import DeviceCodeAuth
+
+    device_auth = DeviceCodeAuth(
+        tenant_id=profile.tenant_id,
+        client_id=profile.client_id,
+        profile_name=_profile_name,
+    )
+    return MsalAuth(device_auth)
 
 
 def _make_method_callback(method_node: MethodNode) -> Any:
     """Create a Click command callback for a specific API method."""
 
     @click.pass_context
-    def callback(ctx: click.Context, **kwargs: Any) -> None:
+    def callback(ctx: click.Context, /, **kwargs: Any) -> None:
         from mws.cli import get_global_options
         from mws.engine.executor import execute
 
         opts = get_global_options()
 
-        # Get the client (lazy import to avoid circular deps)
         from mws.client.graph import GraphClient
 
-        client = GraphClient(api_version=opts.api_version.value, verbose=opts.verbose)
-
+        client: GraphClient | None = None
         try:
+            auth = _resolve_auth(dry_run=opts.dry_run)
+            client = GraphClient(
+                auth=auth, api_version=opts.api_version.value, verbose=opts.verbose
+            )
             result = asyncio.run(
                 execute(
                     method_node=method_node,
@@ -41,13 +76,13 @@ def _make_method_callback(method_node: MethodNode) -> Any:
                     page_all=opts.page_all,
                     page_limit=opts.page_limit,
                     client=client,
+                    orderby=opts.orderby,
                 )
             )
 
-            # Format output
             from mws.output.format import format_and_print
 
-            format_and_print(result, opts.format, opts.quiet)
+            format_and_print(result, opts.format, opts.quiet, opts.no_color)
 
         except Exception as e:
             from mws.errors import MwsError
@@ -57,7 +92,8 @@ def _make_method_callback(method_node: MethodNode) -> Any:
             print(json.dumps({"error": "error", "message": str(e)}), file=sys.stderr)
             raise SystemExit(1) from e
         finally:
-            asyncio.run(client.close())
+            if client is not None:
+                asyncio.run(client.close())
 
     return callback
 
@@ -89,7 +125,7 @@ def _build_resource_group(resource: ResourceNode) -> click.Group:
     return group
 
 
-class LazySchemaGroup(click.Group):
+class LazySchemaGroup(TyperGroup):
     """A Click Group that lazily loads the schema and registers dynamic commands.
 
     This enables two-phase parsing: global flags are parsed first by Typer,
@@ -138,25 +174,3 @@ class LazySchemaGroup(click.Group):
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         self._ensure_schema()
         return super().get_command(ctx, cmd_name)
-
-
-def register_dynamic_commands(app: typer.Typer) -> None:
-    """Convert the Typer app's underlying Click group to a LazySchemaGroup.
-
-    This must be called after the Typer app is fully configured but before
-    the first invocation. It replaces the Click Group with our lazy-loading
-    subclass that dynamically registers commands from the Graph OpenAPI schema.
-    """
-    # Access the underlying Click group
-    click_app = typer.main.get_group(app)
-
-    # Create a new LazySchemaGroup, preserving existing commands
-    lazy_group = LazySchemaGroup(
-        name=click_app.name,
-        help=click_app.help,
-        commands=dict(click_app.commands) if hasattr(click_app, "commands") else {},
-    )
-
-    # Replace the internal click group — this is a hook for the CLI entry point
-    # The actual replacement happens in cli.py's app setup
-    return lazy_group  # type: ignore[return-value]

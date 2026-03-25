@@ -28,7 +28,7 @@ uv run mws --version            # Show version
 uv run mws auth --help          # Auth subcommands
 uv run mws schema list          # List API resource groups
 uv run mws aliases list         # Show alias shortcuts
-uv run pytest                   # Run all tests (114 tests)
+uv run pytest                   # Run all tests (125 tests)
 uv run pytest tests/test_foo.py # Run a single test file
 uv run pytest -k "test_name"   # Run a single test by name
 uv run ruff check src/ tests/  # Lint
@@ -40,7 +40,7 @@ uv run mypy src/                # Type check
 
 ```
 src/mws/
-├── cli.py           # Typer app entry point, global flags, mcp command
+├── cli.py           # Typer app entry point, global flags, cli_main() entry point with alias resolution
 ├── errors.py        # MwsError hierarchy, exit codes (0-5), JSON stderr serialization
 ├── auth/
 │   ├── commands.py  # mws auth login/logout/status/switch CLI commands
@@ -51,9 +51,9 @@ src/mws/
 │   ├── fetch.py     # Download OpenAPI spec from aka.ms URLs
 │   ├── cache.py     # 24h TTL cache at ~/.cache/mws/, JSON index for fast starts
 │   ├── build.py     # Parse OpenAPI → CommandTree (ResourceNode/MethodNode dataclasses)
-│   └── introspect.py # mws schema list/show/refresh commands
+│   └── introspect.py # mws schema list/show/refresh commands, SchemaGroup for path shortcuts
 ├── engine/
-│   ├── commander.py # LazySchemaGroup (Click Group subclass) for dynamic command loading
+│   ├── commander.py # LazySchemaGroup (TyperGroup subclass) for dynamic command loading, auth resolution
 │   ├── executor.py  # CLI invocation → Graph HTTP request, --dry-run, path param substitution
 │   └── aliases.py   # Flat alias table + mws aliases list command
 ├── client/
@@ -65,7 +65,9 @@ src/mws/
 ```
 
 **Key design patterns:**
-- **Two-phase parsing:** Global flags parsed by Typer callback, then `LazySchemaGroup` loads OpenAPI schema and registers Click commands on first access
+- **Two-phase parsing:** Global flags parsed by Typer callback, then `LazySchemaGroup` (wired via `cls=LazySchemaGroup` on the root Typer app) loads OpenAPI schema and registers Click commands on first access
+- **Alias resolution:** `sys.argv` is mutated before Typer dispatch (in both `cli_main()` and `__main__.py`) to expand alias shortcuts like `mail list` → `me messages list`
+- **Auth resolution:** `_resolve_auth()` in `commander.py` tries client credentials (env vars) first, falls back to device code flow, returns `None` for `--dry-run`
 - **Schema engine:** Fetches OpenAPI spec from `https://aka.ms/graph/{v1.0|beta}/openapi.yaml`, caches raw YAML + compact JSON index to `~/.cache/mws/` with 24h TTL
 - **Command tree:** `CommandTree` → `ResourceNode` → `MethodNode` dataclasses with serialization for index caching
 - **Aliases:** Flat `dict[tuple[str,...], AliasTarget]` mapping in `engine/aliases.py`

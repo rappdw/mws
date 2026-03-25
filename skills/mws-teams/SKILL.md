@@ -8,7 +8,7 @@ metadata:
     requires:
       bins:
         - mws
-    cliHelp: "mws schema show /me/joinedTeams"
+    cliHelp: "mws schema show /me/joined-teams"
 ---
 
 # mws — Teams

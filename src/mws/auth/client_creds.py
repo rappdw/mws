@@ -57,4 +57,4 @@ class ClientCredentialAuth:
             if result:
                 error_msg = result.get("error_description", error_msg)
             raise AuthError(message=f"Client credentials auth failed: {error_msg}")
-        return result
+        return dict(result)

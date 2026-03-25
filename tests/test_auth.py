@@ -98,7 +98,9 @@ def test_auth_login_invokes_device_flow(cli_runner: CliRunner, tmp_path: Path) -
         mock_auth.get_accounts.return_value = [{"username": "user@example.com"}]
         mock_auth.client_id = "test-client"
 
-        result = cli_runner.invoke(app, ["auth", "login", "--tenant-id", "test-tenant"])
+        result = cli_runner.invoke(
+            app, ["auth", "login", "--tenant-id", "test-tenant", "--client-id", "test-client"]
+        )
 
     assert result.exit_code == 0
     output = json.loads(result.output)

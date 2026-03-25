@@ -16,12 +16,11 @@ dependencies = [
   "msal>=1.28",
   "pyyaml>=6",
   "platformdirs>=4",
-  "openapi-core>=0.19",
   "mcp>=1.0",
 ]
 
 [project.scripts]
-mws = "mws.cli:app"
+mws = "mws.cli:cli_main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mws"]
@@ -33,6 +32,7 @@ dev = [
   "respx>=0.21",
   "ruff>=0.4",
   "mypy>=1.10",
+  "types-PyYAML",
   "pytest-cov>=5",
 ]
 
@@ -53,3 +53,7 @@ python_version = "3.11"
 strict = true
 packages = ["mws"]
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "msal"
+ignore_missing_imports = true

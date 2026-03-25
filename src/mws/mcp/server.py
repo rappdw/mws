@@ -114,9 +114,11 @@ def _register_tool(
     @mcp.tool(name=name, description=description)
     async def tool_handler(**kwargs: Any) -> str:
         from mws.client.graph import GraphClient
+        from mws.engine.commander import _resolve_auth
         from mws.engine.executor import execute
 
-        client = GraphClient(api_version="v1.0")
+        auth = _resolve_auth(dry_run=False)
+        client = GraphClient(auth=auth, api_version="v1.0")
         body = kwargs.pop("body", None)
 
         try:

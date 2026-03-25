@@ -16,8 +16,9 @@ def merge_odata_params(
     select: str | None,
     filter_expr: str | None,
     top: int | None,
+    orderby: str | None = None,
 ) -> dict[str, Any]:
-    """Merge --select, --filter, --top shorthands into the params dict."""
+    """Merge --select, --filter, --top, --orderby shorthands into the params dict."""
     result = dict(params) if params else {}
     if select:
         result["$select"] = select
@@ -25,6 +26,8 @@ def merge_odata_params(
         result["$filter"] = filter_expr
     if top is not None:
         result["$top"] = top
+    if orderby:
+        result["$orderby"] = orderby
     return result
 
 
@@ -66,8 +69,10 @@ def parse_json_arg(value: str | None) -> dict[str, Any] | None:
     if value is None:
         return None
     if value == "-":
-        return json.load(sys.stdin)
-    return json.loads(value)
+        result: dict[str, Any] = json.load(sys.stdin)
+        return result
+    parsed: dict[str, Any] = json.loads(value)
+    return parsed
 
 
 def build_dry_run_output(
@@ -99,6 +104,7 @@ async def execute(
     page_all: bool,
     page_limit: int,
     client: GraphClient,
+    orderby: str | None = None,
 ) -> Any:
     """Execute a Graph API operation.
 
@@ -109,7 +115,7 @@ async def execute(
     body = parse_json_arg(body_json)
 
     # Merge OData shorthands
-    params = merge_odata_params(params, select, filter_expr, top)
+    params = merge_odata_params(params, select, filter_expr, top, orderby)
 
     # Validate required params
     validate_required_params(method_node, params)
